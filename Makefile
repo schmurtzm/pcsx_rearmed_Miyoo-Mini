@@ -142,7 +142,7 @@ OBJS += plugins/gpu_unai/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_unai/gpu_arm.o
 endif
-plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3 
+plugins/gpu_unai/gpulib_if.o: CFLAGS += -DREARMED -O3
 CC_LINK = $(CXX)
 endif
 
@@ -151,7 +151,7 @@ OBJS += plugins/gpu_senquack/gpulib_if.o
 ifeq "$(ARCH)" "arm"
 OBJS += plugins/gpu_senquack/gpu_arm.o
 endif
-plugins/gpu_senquack/gpulib_if.o: CFLAGS += -DREARMED -O3 
+plugins/gpu_senquack/gpulib_if.o: CFLAGS += -DREARMED -O3
 CC_LINK = $(CXX)
 endif
 
@@ -221,6 +221,29 @@ OBJS += frontend/plat_pollux.o frontend/in_tsbutton.o frontend/blit320.o
 frontend/main.o frontend/menu.o: CFLAGS += -include frontend/320240/ui_gp2x.h
 USE_PLUGIN_LIB = 1
 USE_FRONTEND = 1
+endif
+ifeq "$(PLATFORM)" "trimui"
+SYSROOT     := $(shell $(CC) --print-sysroot)
+SDL_CFLAGS  := $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
+SDL_LDFLAGS := $(shell $(SYSROOT)/usr/bin/sdl-config --libs)
+OBJS += frontend/libpicofe/in_sdl.o
+OBJS += frontend/libpicofe/linux/in_evdev.o
+OBJS += frontend/plat_trimui.o frontend/blit320.o
+frontend/main.o frontend/menu.o: CFLAGS += -include frontend/menu_trimui.h
+USE_PLUGIN_LIB = 1
+USE_FRONTEND = 1
+CFLAGS += -DGPULIB_USE_MMAP -DGPU_UNAI_USE_INT_DIV_MULTINV -DMENU_SHOULDER_COMBO -fomit-frame-pointer -ffast-math -ffunction-sections -fsingle-precision-constant
+CFLAGS += $(SDL_CFLAGS) -DTRIMUI
+
+MINUI_MENU = 1
+ifeq ($(MINUI_MENU), 1)
+CFLAGS += -DMINUI_MENU
+LDLIBS += -lSDL_image -lSDL_ttf
+# -lmmenu
+endif
+
+LDFLAGS += $(CFLAGS) $(SDL_LDFLAGS) -flto -fwhole-program
+
 endif
 ifeq "$(PLATFORM)" "maemo"
 OBJS += maemo/hildon.o maemo/main.o maemo/maemo_xkb.o frontend/pl_gun_ts.o

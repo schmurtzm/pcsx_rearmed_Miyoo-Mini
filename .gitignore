@@ -11,3 +11,8 @@ frontend/revision.h
 tools
 .pcsx/
 obj/
+.vscode
+pcsx
+# Switch
+*.d
+.vscode/ipch/*
