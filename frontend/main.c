@@ -23,7 +23,6 @@
 #include "plat.h"
 #include "../libpcsxcore/misc.h"
 #include "../libpcsxcore/cheat.h"
-#include "../libpcsxcore/cdrom.h"
 #include "../libpcsxcore/new_dynarec/new_dynarec.h"
 #include "../plugins/cdrcimg/cdrcimg.h"
 #include "../plugins/dfsound/spu_config.h"
@@ -41,14 +40,6 @@ static void check_memcards(void);
 #endif
 #ifndef BOOT_MSG
 #define BOOT_MSG "Booting up..."
-#endif
-
-#ifdef MINUI_MENU
-#include <dlfcn.h>
-#include <mmenu.h>
-static void* mmenu = NULL;
-static char rom_path[MAXPATHLEN];
-static char save_path[MAXPATHLEN];
 #endif
 
 // don't include debug.h - it breaks ARM build (R1 redefined)
@@ -93,10 +84,6 @@ static int get_gameid_filename(char *buf, int size, const char *fmt, int i) {
 void set_cd_image(const char *fname)
 {
 	const char *ext = NULL;
-	
-#ifdef MINUI_MENU
-	strcpy(rom_path, fname);
-#endif
 	
 	if (fname != NULL)
 		ext = strrchr(fname, '.');
@@ -174,21 +161,6 @@ void emu_set_default_config(void)
 	in_type2 = PSE_PAD_TYPE_STANDARD;
 }
 
-#ifdef MINUI_MENU
-static void change_disc(char* path)
-{
-	CdromId[0] = '\0';
-	CdromLabel[0] = '\0';
-
-	set_cd_image(path);
-	if (ReloadCdromPlugin() < 0) return;
-	if (CDR_open() < 0) return;
-
-	SetCdOpenCaseTime(time(NULL) + 2);
-	LidInterrupt();
-}
-#endif
-
 void do_emu_action(void)
 {
 	int ret;
@@ -207,48 +179,7 @@ void do_emu_action(void)
 #ifndef NO_FRONTEND
 	case SACTION_ENTER_MENU:
 		toggle_fast_forward(1);
-#ifdef MINUI_MENU
-		if (mmenu)
-		{
-			SDL_Surface *screen = SDL_GetVideoSurface();
-
-			ShowMenu_t ShowMenu = (ShowMenu_t)dlsym(mmenu, "ShowMenu");
-			MenuReturnStatus status = ShowMenu(rom_path, save_path, screen, kMenuEventKeyDown);
-
-			char disc_path[256];
-			ChangeDisc_t ChangeDisc = (ChangeDisc_t)dlsym(mmenu, "ChangeDisc");
-			
-			if (status==kStatusExitGame) {
-				g_emu_want_quit = 1;
-			}
-			else if (status==kStatusChangeDisc && ChangeDisc(disc_path)) {
-				change_disc(disc_path);
-			}
-			else if (status==kStatusOpenMenu) {
-				menu_loop();
-			}
-			else if (status>=kStatusLoadSlot) {
-				state_slot = status - kStatusLoadSlot;
-				emu_load_state(state_slot);
-			}
-			else if (status>=kStatusSaveSlot) {
-				state_slot = status - kStatusSaveSlot;
-				emu_save_state(state_slot);
-			}
-			plat_video_menu_leave();
-			
-			// release that menu key
-			SDL_Event sdlevent;
-			sdlevent.type = SDL_KEYUP;
-			sdlevent.key.keysym.sym = SDLK_ESCAPE;
-			SDL_PushEvent(&sdlevent);
-		}
-		else {
-			menu_loop();
-		}
-#else
 		menu_loop();
-#endif
 		return;
 	case SACTION_NEXT_SSLOT:
 		state_slot++;
@@ -643,16 +574,6 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
-	
-#ifdef MINUI_MENU
-	puts("opening mmenu...");
-	mmenu = dlopen("libmmenu.so", RTLD_LAZY);
-	
-	if (mmenu) {
-		ResumeSlot_t ResumeSlot = (ResumeSlot_t)dlsym(mmenu, "ResumeSlot");
-		if (ResumeSlot) loadst = ResumeSlot() + 1; // just override existing command line argument
-	}
-#endif 
 
 	if (cdfile)
 		set_cd_image(cdfile);
@@ -727,14 +648,6 @@ int main(int argc, char *argv[])
 
 	pl_start_watchdog();
 
-#ifdef MINUI_MENU
-	// build save_path_template
-	char fmt[MAXPATHLEN];
-	MAKE_PATH(fmt, STATES_DIR, "%.32s-%.9s.%3.3d");
-	get_gameid_filename(save_path, MAXPATHLEN, fmt, 0);
-	char* tmp = strrchr(save_path, '.')+1;
-	strcpy(tmp, "%3.3d");
-#endif	
 	while (!g_emu_want_quit)
 	{
 		stop = 0;
